@@ -120,5 +120,6 @@ const formatTimestamp = (date) => {
   padding: 4px 12px;
   border-radius: 8px;
   font-size: 12px;
+  white-space: pre-wrap; /* 保留换行 */
 }
 </style> 

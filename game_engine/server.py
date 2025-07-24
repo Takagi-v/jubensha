@@ -3,10 +3,14 @@ import socketio
 from aiohttp import web
 
 from ai_test import get_ai_response
+# ----------------- 新增：线程池包装 -----------------
+async def get_ai_response_async(prompt: str):
+    """在后台线程执行阻塞式 get_ai_response，避免阻塞事件循环。"""
+    return await asyncio.to_thread(get_ai_response, prompt)
 from script_content import CHARACTERS, CLUES, INITIAL_PROMPTS
 
 # ----------------- AI Notification Helper -----------------
-def notify_ai_players(statement_author_id: str, statement_text: str):
+async def notify_ai_players(statement_author_id: str, statement_text: str):
     """让所有 AI（排除自己和 DM）获取最新发言，方便后续推理。"""
     for pid, pinfo in game_state["players"].items():
         # 仅通知 AI（包括 DM），跳过发言者本人
@@ -23,7 +27,7 @@ def notify_ai_players(statement_author_id: str, statement_text: str):
             "请你记住这段信息，用于之后的讨论（无需回复）。"
         )
         try:
-            _ = get_ai_response(prompt)
+            _ = await get_ai_response_async(prompt)
         except Exception as e:
             print(f"Error notifying AI {pid}: {e}")
 
@@ -141,14 +145,14 @@ async def advance_game():
 
         if player["is_ai"]:
             ai_prompt = INITIAL_PROMPTS.get(player_id, f"轮到你了，{player['name']}。请陈述你的不在场证明。")
-            statement = get_ai_response(ai_prompt)
+            statement = await get_ai_response_async(ai_prompt)
             game_state["statements"][player_id] = statement
             
             msg = add_message(statement, msg_type="chat", author=player["name"], author_id=player_id)
             await sio.emit('new_message', msg)
 
             # 通知其它 AI 该发言
-            notify_ai_players(player_id, statement)
+            await notify_ai_players(player_id, statement)
             
             game_state["current_speaker_index"] += 1
             asyncio.create_task(advance_game())
@@ -173,7 +177,7 @@ async def advance_game():
         # Inform DM of all available clues this round
         all_clues_for_dm = [clue for clues_list in round_clues_data.values() for clue in clues_list]
         clues_summary = f"第 {round_num_str} 轮可公布的线索如下：\n" + "\n".join(all_clues_for_dm)
-        get_ai_response(f"给 DM 的信息：\n{clues_summary}")
+        await get_ai_response_async(f"给 DM 的信息：\n{clues_summary}")
 
         # Distribute clues to each player based on their character name key
         for player_id, player_info in game_state["players"].items():
@@ -193,41 +197,30 @@ async def advance_game():
                 ai_clues_str = "\n".join(player_clues)
                 ai_prompt = (
                     f"你进入了搜证阶段，获得了以下专属线索：\n{ai_clues_str}\n"
-                    "你要选择公开其中的某些线索吗？如果想，请回复 '公开' 以及你想要公开的线索内容，否则回复任意其他内容。"
+                    "如果你想公开其中的部分或全部线索，请在你的回复中自行说明，并直接附上你要公开的线索内容。"
                 )
-                response = get_ai_response(ai_prompt)
+                response = await get_ai_response_async(ai_prompt)
+
+                # 直接把 AI 的回复作为聊天气泡广播
+                chat_msg = add_message(response, msg_type="chat", author=player_info["name"], author_id=player_id)
+                await sio.emit('new_message', chat_msg)
+
+                # 如果 AI 提到了“公开”，则把整段回复当作公开信息，存入 public_clues，
+                # 让前端在 other_info 中呈现
                 if "公开" in response:
-                    # 简单解析：凡是玩家拥有的线索文本出现在回复中，即视为其选择公开
-                    published = [cl for cl in player_clues if cl in response]
-                    if not published and "公开" in response: # Check "公开" again in case of only keyword response
-                        # 若 AI 只回复“公开”且未列举，默认公开全部
-                        published = player_clues
-
-                    if published:
-                        for clue_content in published:
-                            game_state["public_clues"].append({
-                                "publisher_id": player_id,
-                                "publisher_name": player_info["name"],
-                                "content": clue_content
-                            })
-                        # Broadcast the update
-                        await sio.emit('game_state_update', {"public_clues": game_state["public_clues"]})
-
-                    # 聊天气泡：由该 AI 宣布公开线索
-                    chat_msg = add_message(f"{player_info['name']} 公开了一些线索。", msg_type="chat", author=player_info["name"], author_id=player_id)
-                    await sio.emit('new_message', chat_msg)
-
-                    if published:
-                        system_content = f"{player_info['name']} 公布的线索：\n" + "\n".join(published)
-                        sys_msg = add_message(system_content, msg_type="system")
-                        await sio.emit('new_message', sys_msg)
+                    game_state["public_clues"].append({
+                        "publisher_id": player_id,
+                        "publisher_name": player_info["name"],
+                        "content": response
+                    })
+                    await sio.emit('game_state_update', {"public_clues": game_state["public_clues"]})
             else:
                 # It's a human player, send them their batch of clues
                 if player_id in player_sids:
                     await sio.emit('discovered_clues', {'clues': player_clues}, room=player_sids[player_id])
 
                     # 发送系统消息提示该玩家
-                    sys_content = "你获得了以下线索：\n" + "\n".join(player_clues)
+                    sys_content = "你获得了以下线索：\n" + "\n".join([f"- {cl}" for cl in player_clues])
                     sys_msg = add_message(sys_content, msg_type="system")
                     await sio.emit('new_message', sys_msg, room=player_sids[player_id])
 
@@ -250,7 +243,7 @@ async def advance_game():
             
             new_turn_order = []
             try:
-                dm_response = get_ai_response(dm_prompt).strip()
+                dm_response = (await get_ai_response_async(dm_prompt)).strip()
                 if dm_response:
                     # Filter out any empty strings that might result from splitting
                     potential_order = [pid.strip() for pid in dm_response.replace("，", ",").split(',') if pid.strip()]
@@ -306,13 +299,13 @@ async def advance_game():
             ai_prompt = (
                 f"现在是推理陈述阶段（第 {round_num} 轮）。请 {player['name']} 表达你的推理观点。"
             )
-            statement = get_ai_response(ai_prompt)
+            statement = await get_ai_response_async(ai_prompt)
             game_state["statements"][player_id] = statement
 
             chat_msg = add_message(statement, msg_type="chat", author=player["name"], author_id=player_id)
             await sio.emit('new_message', chat_msg)
 
-            notify_ai_players(player_id, statement)
+            await notify_ai_players(player_id, statement)
 
             game_state["current_speaker_index"] += 1
             asyncio.create_task(advance_game())
@@ -327,6 +320,8 @@ async def advance_game():
         # ------------ AI 投票 ------------
         import random
         for pid, pinfo in game_state["players"].items():
+            if pid == 'dm':
+                continue  # DM 不参与投票
             if not pinfo["is_ai"]:
                 continue
             if pid in game_state["votes"]:
@@ -355,7 +350,7 @@ async def advance_game():
             
             dm_prompt = vote_summary + "\n请你基于此结果，为接下来的流程做准备。"
             try:
-                get_ai_response(dm_prompt)
+                await get_ai_response_async(dm_prompt)
             except Exception as e:
                 print(f"Error notifying DM of vote results: {e}")
 
@@ -393,7 +388,7 @@ async def advance_game():
             )
             
             try:
-                response = get_ai_response(ai_prompt)
+                response = await get_ai_response_async(ai_prompt)
                 # Find the player ID that matches the response name
                 accused_id = next((p_id for p_id, p in game_state["players"].items() if p["name"] in response), None)
                 if not accused_id:
@@ -423,7 +418,7 @@ async def advance_game():
             truth_prompt = accusation_summary + "\n请基于此结果，公布最终的凶手和游戏真相！"
             truth_message = "游戏结束！"
             try:
-                truth_message = get_ai_response(truth_prompt)
+                truth_message = await get_ai_response_async(truth_prompt)
             except Exception as e:
                 print(f"Error getting game over message from DM: {e}")
                 # Fallback to find the real killer from script_content
@@ -446,7 +441,7 @@ async def advance_game():
             results_prompt = "现在请公布每位玩家的最终得分和游戏结局（谁是赢家，谁是输家）。"
             final_results_message = "计分板：游戏结束，感谢参与！"
             try:
-                final_results_message = get_ai_response(results_prompt)
+                final_results_message = await get_ai_response_async(results_prompt)
             except Exception as e:
                 print(f"Error getting final results from DM: {e}")
 
@@ -471,7 +466,7 @@ async def start_game_flow():
     # --- Robust turn order generation for alibi stage ---
     new_turn_order = []
     try:
-        dm_response = get_ai_response(dm_prompt).strip()
+        dm_response = (await get_ai_response_async(dm_prompt)).strip()
         if dm_response:
             potential_order = [pid.strip() for pid in dm_response.replace("，", ",").split(',') if pid.strip()]
             valid_player_ids = set(game_state["players"].keys())
@@ -624,7 +619,7 @@ async def handle_player_action(sid, action):
         await sio.emit('new_message', message)
 
         # 通知其它 AI 该发言
-        notify_ai_players(player_id, statement)
+        await notify_ai_players(player_id, statement)
 
         game_state["pending_action"] = "" # Use empty string
         game_state["current_speaker_index"] += 1
@@ -711,7 +706,7 @@ async def handle_private_message_to_dm(sid, data):
     dm_response = "DM现在有点忙，稍后再试吧。" # Default response
     try:
         # Assuming get_ai_response is synchronous for now, as used elsewhere
-        dm_response = get_ai_response(prompt)
+        dm_response = await get_ai_response_async(prompt)
     except Exception as e:
         print(f"Error getting DM AI response for {player_id}: {e}")
 

@@ -193,6 +193,22 @@ export const useGameStore = defineStore('game', {
             new_my_info.other_info.push(new_section);
         }
       }
+
+      // Append discovered clues (private) to 'other_info'
+      if (state.discovered_clues && state.discovered_clues.length > 0) {
+        if (!new_my_info.other_info) {
+          new_my_info.other_info = [];
+        }
+        const section_title = "--- 你新获得的线索 ---";
+        const formatted_private_clues = state.discovered_clues.map(c => `- ${c}`);
+        let existing_index = new_my_info.other_info.findIndex(item => typeof item === 'string' && item.startsWith(section_title));
+        const new_section = [section_title, ...formatted_private_clues].join('\n');
+        if (existing_index !== -1) {
+          new_my_info.other_info[existing_index] = new_section;
+        } else {
+          new_my_info.other_info.push(new_section);
+        }
+      }
       return new_my_info;
     }
   },
