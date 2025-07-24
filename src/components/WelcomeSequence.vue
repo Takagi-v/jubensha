@@ -5,7 +5,7 @@
       <div v-if="step === 'selection'" class="step-container character-selection">
         <h1>选择你的角色</h1>
         <div class="character-card" @click="selectCharacter">
-          <el-avatar :size="100" class="character-avatar">洪</el-avatar>
+          <el-avatar :size="100" src="/figure/洪船长.png" class="character-avatar"></el-avatar>
           <h2>船长: 洪子廉</h2>
           <p>“这艘船，连同它所有的秘密，都在我的掌控之中。”</p>
           <el-button type="primary" size="large">确认选择</el-button>
@@ -151,7 +151,10 @@ onUnmounted(() => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.85);
+  background-image: url('/figure/背景图.png');
+  background-size: cover;
+  background-position: center;
+  /* background-color: rgba(0, 0, 0, 0.85); */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -182,7 +185,7 @@ onUnmounted(() => {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
 }
 .character-avatar {
-  background-color: #409EFF;
+  /* background-color: #409EFF; */
   font-size: 40px;
   margin-bottom: 20px;
 }

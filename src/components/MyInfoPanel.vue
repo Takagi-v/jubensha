@@ -8,6 +8,7 @@
       <el-menu :default-active="activeMenu" class="side-menu" @select="handleMenuSelect">
         <el-menu-item index="basic"><el-icon><Postcard /></el-icon><span>基本信息</span></el-menu-item>
         <el-menu-item index="secrets"><el-icon><Lock /></el-icon><span>秘密任务</span></el-menu-item>
+        <el-menu-item index="portrait"><el-icon><Picture /></el-icon><span>角色立绘</span></el-menu-item>
         <el-menu-item index="relations"><el-icon><Connection /></el-icon><span>人际关系</span></el-menu-item>
         <el-menu-item index="timeline"><el-icon><Clock /></el-icon><span>时间线</span></el-menu-item>
         <el-menu-item index="other_info"><el-icon><InfoFilled /></el-icon><span>持有信息</span></el-menu-item>
@@ -22,6 +23,10 @@
               <el-descriptions-item label="简介">{{ myInfo.character.description }}</el-descriptions-item>
               <el-descriptions-item label="我的陈述">{{ myInfo.statement }}</el-descriptions-item>
             </el-descriptions>
+          </div>
+          <!-- 角色立绘 -->
+          <div v-show="activeMenu === 'portrait'" class="info-content-item portrait-container">
+            <el-image style="max-width: 100%; max-height: 100%;" src="/figure/洪船长.png" fit="contain"></el-image>
           </div>
           <!-- 秘密任务 -->
           <div v-show="activeMenu === 'secrets'" class="info-content-item">
@@ -60,7 +65,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { Avatar, Postcard, Lock, Connection, Clock, InfoFilled } from '@element-plus/icons-vue'
+import { Avatar, Postcard, Lock, Connection, Clock, InfoFilled, Picture } from '@element-plus/icons-vue'
 import { useGameStore } from '../store/gameStore.js'
 
 const gameStore = useGameStore()
@@ -108,6 +113,13 @@ const formatOtherInfo = (info) => {
   flex-grow: 1;
   padding: 16px;
   overflow-y: auto;
+}
+.portrait-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .info-content-item {
   font-size: 14px;

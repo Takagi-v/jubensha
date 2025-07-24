@@ -16,7 +16,7 @@
         @click="handleCardClick(player)"
       >
         <div class="player-header">
-          <el-avatar :size="32">{{ player.public_info.character_name.charAt(0) }}</el-avatar>
+          <el-avatar :size="32" :src="getCharacterAvatar(player.public_info.character_name)"/>
           <div class="player-details">
             <span class="player-name">{{ player.name }}</span>
             <span class="character-name">{{ player.public_info.character_name }}</span>
@@ -28,25 +28,35 @@
     </div>
 
     <!-- Player Details Dialog -->
-    <el-dialog v-model="detailsDialogVisible" :title="`关于 “${selectedPlayer?.name}” 的信息`" width="400px">
-      <div v-if="selectedPlayerRelation" class="dialog-content">
-        <div class="relation-section">
-          <p><strong>你与 Ta 的关系:</strong></p>
-          <p class="relation-desc">{{ selectedPlayerRelation.desc }}</p>
+    <el-dialog v-model="detailsDialogVisible" :title="`关于 “${selectedPlayer?.name}” 的信息`" width="550px">
+      <div v-if="selectedPlayer" class="dialog-content-flex">
+        <div class="dialog-character-portrait-left">
+          <el-image 
+            style="width: 180px; border-radius: 8px;"
+            :src="getCharacterAvatar(selectedPlayer.public_info.character_name)" 
+            fit="contain"
+          />
         </div>
-        
-        <el-divider />
-        
-        <div class="clues-section">
-          <p><strong>关于 Ta 的公开线索:</strong></p>
-          <div v-if="selectedPlayerRelation.clues && selectedPlayerRelation.clues.length > 0">
-            <el-tag v-for="clue in selectedPlayerRelation.clues" :key="clue" type="danger" class="clue-tag">{{ clue }}</el-tag>
+
+        <div class="relation-details-right">
+          <div v-if="selectedPlayerRelation">
+            <div class="relation-section">
+              <p><strong>你与 Ta 的关系:</strong></p>
+              <p class="relation-desc">{{ selectedPlayerRelation.desc }}</p>
+            </div>
+            <el-divider />
+            <div class="clues-section">
+              <p><strong>关于 Ta 的公开线索:</strong></p>
+              <div v-if="selectedPlayerRelation.clues && selectedPlayerRelation.clues.length > 0">
+                <el-tag v-for="clue in selectedPlayerRelation.clues" :key="clue" type="danger" class="clue-tag">{{ clue }}</el-tag>
+              </div>
+              <p v-else class="no-clues">暂无公开线索</p>
+            </div>
           </div>
-          <p v-else class="no-clues">暂无公开线索</p>
+          <div v-else>
+            <p>你对 Ta 暂无特殊认知。</p>
+          </div>
         </div>
-      </div>
-      <div v-else>
-        <p>你对 Ta 暂无特殊认知。</p>
       </div>
     </el-dialog>
 
@@ -78,6 +88,17 @@ const selectedPlayer = ref(null)
 const selectedPlayerRelation = ref(null)
 const dmInputText = ref('')
 
+const getCharacterAvatar = (characterName) => {
+  const mapping = {
+    '船长': '/figure/洪船长.png',
+    '二副': '/figure/张二副.png',
+    '酒吧经理': '/figure/修经理.png',
+    '乘务员': '/figure/韩乘务.png',
+    '歌手': '/figure/林歌手.png',
+    // DM and others can have a default or no avatar
+  };
+  return mapping[characterName] || ''; // Fallback to default avatar if not found
+};
 
 const handleCardClick = (player) => {
   if (player.type === 'dm') return;
@@ -179,6 +200,16 @@ const sendDmMessage = () => {
 }
 .status-tag {
   flex-shrink: 0;
+}
+.dialog-content-flex {
+  display: flex;
+  gap: 20px;
+}
+.dialog-character-portrait-left {
+  flex-shrink: 0;
+}
+.relation-details-right {
+  flex-grow: 1;
 }
 .dialog-content p {
   line-height: 1.7;
