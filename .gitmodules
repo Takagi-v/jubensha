@@ -1,0 +1,3 @@
+[submodule "game_engine/submodule/memory_rag"]
+	path = game_engine/submodule/memory_rag
+	url = https://github.com/yyqiu35000/memory_rag.git
