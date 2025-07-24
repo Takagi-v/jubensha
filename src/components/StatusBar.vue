@@ -6,7 +6,7 @@
     </div>
     <div class="status-item">
       <el-icon><User /></el-icon>
-      <span>当前玩家: <strong>{{ gameStore.current_player?.public_info.character_name || '无' }}</strong></span>
+      <span>当前玩家: <strong>{{ (gameStore.current_player?.public_info?.character_name) || '无' }}</strong></span>
     </div>
     <div class="status-item">
       <el-icon><Clock /></el-icon>

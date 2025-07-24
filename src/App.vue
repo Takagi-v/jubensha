@@ -4,7 +4,7 @@
     <div v-if="gameStore.welcomeSequenceCompleted" class="game-container">
       <el-container class="main-layout">
         <!-- Left Panel: My Info -->
-        <el-aside width="300px" class="panel left-panel">
+        <el-aside width="400px" class="panel left-panel">
           <MyInfoPanel />
         </el-aside>
 
@@ -22,7 +22,7 @@
         </el-container>
 
         <!-- Right Panel: Public Info -->
-        <el-aside width="300px" class="panel right-panel">
+        <el-aside width="250px" class="panel right-panel">
           <PublicInfoPanel />
         </el-aside>
       </el-container>
@@ -30,6 +30,9 @@
     
     <!-- Welcome Sequence Overlay -->
     <WelcomeSequence v-else />
+
+    <!-- Game Over Overlay -->
+    <GameOver />
   </div>
 </template>
 
@@ -41,6 +44,7 @@ import PublicInfoPanel from './components/PublicInfoPanel.vue'
 import ChatPanel from './components/ChatPanel.vue'
 import ActionInput from './components/ActionInput.vue'
 import WelcomeSequence from './components/WelcomeSequence.vue' // 导入新组件
+import GameOver from './components/GameOver.vue' // Import the new component
 import websocketService from './services/websocketService.js'
 import { useGameStore } from './store/gameStore.js'
 

@@ -18,7 +18,8 @@ class WebsocketService {
     const gameStore = useGameStore()
 
     // 后端服务器地址
-    const VITE_APP_WS_URL = import.meta.env.VITE_APP_WS_URL || 'http://localhost:3000'
+    // The backend server is running on port 8765
+    const VITE_APP_WS_URL = import.meta.env.VITE_APP_WS_URL || 'http://localhost:8765'
     
     console.log(`正在连接到 ${VITE_APP_WS_URL}...`)
     this.socket = io(VITE_APP_WS_URL, {
@@ -65,6 +66,9 @@ class WebsocketService {
     this.socket.on('game_state_update', (newGameState) => {
       console.log('接收到 game_state_update:', newGameState)
       gameStore.setGameState(newGameState)
+      // 调试: 打印合并后的完整 game_state
+      console.log('%c[GameStore] 当前 game_state', 'color: #42b983; font-weight: bold;',
+                  JSON.parse(JSON.stringify(gameStore.game_state)))
     })
 
     // 监听新消息
@@ -78,6 +82,18 @@ class WebsocketService {
       console.log('接收到 private_update:', newPrivateInfo)
       gameStore.setMyInfo(newPrivateInfo)
     })
+    
+    // 监听来自DM的私聊消息
+    this.socket.on('dm_message', (newMessage) => {
+      console.log('接收到 dm_message:', newMessage)
+      gameStore.addDmMessage(newMessage)
+    })
+
+    // Listen for a batch of clues discovered by the player
+    this.socket.on('discovered_clues', ({ clues }) => {
+        console.log('接收到 discovered_clues:', clues)
+        gameStore.addDiscoveredClues(clues)
+    })
   }
   
   sendAction(action) {
@@ -87,6 +103,16 @@ class WebsocketService {
     }
     this.socket.emit('player_action', action)
     console.log('发送动作:', action)
+    return true
+  }
+
+  sendDirectMessage(message) {
+    if (!this.socket || !this.socket.connected) {
+      console.error('无法发送私聊：WebSocket 未连接')
+      return false
+    }
+    this.socket.emit('direct_message', message)
+    console.log('发送私聊:', message)
     return true
   }
 
