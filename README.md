@@ -1,146 +1,127 @@
-# 剧本杀游戏前端Demo
+# 剧本杀游戏Demo
 
-这是一个基于Vue 3 + Vite + Pinia + Element Plus构建的剧本杀游戏前端演示项目。
+这是一个基于Vue 3 (前端) 和 Python (后端) 构建的全栈剧本杀游戏演示项目。
 
 ## ✨ 功能特性
 
-- 🎮 **实时游戏体验**: 通过WebSocket与后端实时通信
-- 🤖 **AI + 真人混合**: 支持AI玩家和真人玩家同时游戏
-- 💬 **即时聊天**: 实时聊天系统，支持系统消息和玩家对话
-- 🎭 **角色扮演**: 完整的角色信息、背景故事和私密线索系统
-- 🎯 **多种行动**: 支持搜查、调查、移动、指控等游戏动作
-- 📱 **响应式设计**: 适配桌面和移动端设备
-- 🎨 **现代UI**: 使用Element Plus构建的美观界面
+- 🎮 **实时游戏体验**: 通过WebSocket与后端实时通信，实现状态同步。
+- 🤖 **AI + 真人混合**: 支持AI玩家和真人玩家同场竞技。
+- 💬 **公共与私密聊天**:
+    - **公共频道**: 所有玩家可见的实时聊天系统，支持系统消息和玩家对话。
+    - **与DM私聊**: 玩家可随时与AI DM进行一对一私聊，获取非剧透的游戏提示。
+- 🎭 **角色扮演**: 完整的角色信息、背景故事、秘密任务和私密线索系统。
+- 🔍 **多阶段游戏流程**: 包含不在场证明、搜证、讨论、投票、最终指认等经典剧本杀环节。
+- 📱 **响应式设计**: 适配桌面和移动端设备。
+- 🎨 **现代UI**: 使用Element Plus构建的美观、清晰的界面。
 
 ## 🛠️ 技术栈
 
-- **前端框架**: Vue 3 (Composition API)
-- **构建工具**: Vite
-- **状态管理**: Pinia
-- **UI组件库**: Element Plus
-- **实时通信**: Socket.IO Client
-- **样式**: CSS3 + Element Plus主题
+- **前端**: Vue 3 (Composition API), Vite, Pinia, Element Plus, Socket.IO Client
+- **后端**: Python, aiohttp, python-socketio
+- **AI (模拟)**: 使用大语言模型接口进行对话生成 (当前为模拟实现)。
 
 ## 📁 项目结构
 
 ```
-src/
-├── components/          # 组件目录
-│   ├── StatusBar.vue    # 状态栏组件
-│   ├── ChatPanel.vue    # 聊天面板
-│   ├── MyInfoPanel.vue  # 个人信息面板
-│   ├── PublicInfoPanel.vue # 公共信息面板
-│   └── ActionInput.vue  # 行动输入组件
-├── store/
-│   └── gameStore.js     # 游戏状态管理
-├── services/
-│   └── websocketService.js # WebSocket通信服务
-├── App.vue              # 主应用组件
-├── main.js              # 应用入口
-└── style.css            # 全局样式
+jubensha/
+├── game_engine/         # 后端游戏引擎
+│   ├── server.py        # Socket.IO 服务器
+│   ├── ai_test.py       # AI 模型接口 (模拟)
+│   └── script_content.py # 游戏脚本内容
+├── src/                 # 前端源码
+│   ├── components/      # UI 组件
+│   ├── store/           # Pinia 状态管理
+│   ├── services/        # 服务层 (WebSocket)
+│   ├── App.vue          # 主应用组件
+│   ├── main.js          # 应用入口
+│   └── style.css        # 全局样式
+└── README.md
 ```
 
 ## 🚀 快速开始
 
-### 安装依赖
+确保你的开发环境已安装 [Node.js](https://nodejs.org/) (v16+) 和 [Python](https://www.python.org/) (v3.8+)。
 
+### 1. 后端设置
+
+a. **进入后端目录并创建虚拟环境** (推荐):
+```bash
+cd game_engine
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+b. **安装Python依赖**:
+```bash
+pip install "python-socketio[aiohttp]"
+# AI 功能依赖于一个外部的 LLM API，在 ai_test.py 中配置
+```
+
+c. **启动后端服务器**:
+```bash
+# 在项目根目录运行
+python game_engine/server.py
+```
+后端服务将在 `http://localhost:8765` 启动。
+
+### 2. 前端设置
+
+a. **安装NPM依赖** (在项目根目录):
 ```bash
 npm install
 ```
 
-### 启动开发服务器
-
+b. **启动开发服务器**:
 ```bash
 npm run dev
 ```
+前端开发服务器通常会运行在 `http://localhost:5173` (具体端口见终端输出)。在浏览器中打开此地址即可开始游戏。
 
-项目将在 `http://localhost:3000` 启动。
-
-### 构建生产版本
+### 3. 构建生产版本
 
 ```bash
 npm run build
 ```
 
-## 🎯 核心设计思路
+## 🎯 核心设计思路 (前端)
 
 ### 1. 状态管理中心 (Pinia Store)
 - `my_player_id`: 当前玩家ID
 - `game_state`: 游戏公共状态
 - `my_info`: 玩家私密信息
-- `messages`: 聊天消息列表
-- `is_connected`: 连接状态
+- `messages`: 公共聊天消息列表
+- `dm_messages`: 与DM的私聊消息列表
+- `is_connected`: WebSocket连接状态
 
 ### 2. WebSocket通信层
-- 自动连接到后端游戏服务器
-- 监听游戏状态更新、消息、私密信息变化
-- 发送玩家行动到后端
-
-### 3. 响应式UI组件
-- 所有组件都从Store读取数据
-- 纯展示组件，不包含复杂逻辑
-- 自动响应状态变化并重新渲染
-
-### 4. 用户交互系统
-- 只有轮到玩家时才能进行操作
-- 支持多种游戏动作（搜查、调查、移动、指控）
-- 实时聊天和系统通知
+- 自动连接到后端游戏服务器 (`http://localhost:8765`)。
+- 监听游戏状态更新、新消息、私密信息等事件。
+- 封装 `sendAction` 和 `sendDirectMessage` 方法向后端发送玩家动作和消息。
 
 ## 🎮 游戏界面说明
 
-### 状态栏
-- 显示连接状态
-- 当前游戏阶段
-- 当前行动玩家
+### 状态栏 (顶部)
+- **阶段**: 显示当前游戏阶段，如 `alibi`, `investigation_1` 等。
+- **当前玩家**: 显示正在行动的玩家。
+- **回合**: 显示当前游戏回合。
 
-### 左侧面板 - 个人信息
-- 角色身份和背景
-- 任务目标
-- 私密线索
-- 其他重要信息
+### 左侧面板 - 我的档案
+- 查看个人角色身份、任务目标、秘密、时间线等私密信息。
 
-### 中间区域 - 聊天和行动
-- 实时聊天消息
-- 快捷行动按钮
-- 聊天输入框
+### 中间区域 - 聊天面板
+- 显示所有公共聊天消息和系统通知。
+- 底部的输入框用于在你的回合进行发言。
 
 ### 右侧面板 - 公共信息
-- 所有玩家状态
-- 游戏统计信息
-- 玩家在线状态
-
-## 🔧 配置说明
-
-### WebSocket连接
-默认连接到 `http://localhost:8000`，可在 `src/services/websocketService.js` 中修改。
-
-### 玩家ID
-默认玩家ID为 `human_player_1`，可在启动时配置。
-
-## 🐛 调试功能
-
-项目内置调试面板，包含：
-- 连接状态信息
-- 发送测试消息
-- 模拟游戏状态
-- 实时状态监控
-
-点击左下角的设置按钮可开启/关闭调试面板。
+- 显示所有玩家的状态（在线/离线）。
+- 点击DM玩家卡片上的 **[私聊]** 按钮，可以向AI DM提问。
 
 ## 📝 注意事项
 
-1. **后端依赖**: 此前端需要配合对应的后端服务使用
-2. **浏览器兼容**: 建议使用现代浏览器 (Chrome 90+, Firefox 88+, Safari 14+)
-3. **网络连接**: 确保后端服务正常运行在8000端口
-4. **实时性**: 游戏依赖WebSocket连接，请确保网络稳定
-
-## 🎨 自定义样式
-
-项目使用Element Plus主题，可通过以下方式自定义：
-
-1. 修改 `src/style.css` 中的全局样式
-2. 在组件中使用scoped样式
-3. 覆盖Element Plus的CSS变量
+1. **服务启动顺序**: 建议先启动后端服务，再启动前端服务。
+2. **网络端口**: 确保端口 `8765` (后端) 和 `5173` (前端，或其他) 未被占用。
+3. **浏览器兼容**: 建议使用现代浏览器 (Chrome, Firefox, Safari, Edge的最新版本)。
+4. **AI配置**: 当前AI为模拟实现，如需对接真实模型，请修改 `game_engine/ai_test.py` 中的 `get_ai_response` 函数。
 
 ## 📄 License
 
