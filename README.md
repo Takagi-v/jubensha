@@ -7,10 +7,12 @@
 - `src/`: 前端 Vue 项目源码
 - `public/`: 前端静态资源，如图片等
 - `game_engine/`: 后端 Python 游戏引擎
-  - `server.py`: Socket.IO 服务器主文件
+  - `server.py`: Socket.IO 服务器主文件，包含主要的游戏流程逻辑
+  - `dm_agent.py`: “剧本主持人” (DM) 角色的大语言模型逻辑
+  - `player_agent.py`: AI 玩家角色逻辑
   - `script_content.py`: 游戏脚本、角色、线索等内容
-  - `ai_test.py`: 对接大语言模型的 AI 玩家逻辑
-  - `requirements.txt`: Python 依赖项
+  - `submodule/memory_rag/`: 基于 RAG 的长时记忆子模块
+  - `requirements.txt`: Python 核心依赖项
 
 ## 技术栈
 
@@ -51,8 +53,11 @@ python -m venv venv
 # macOS/Linux
 source venv/bin/activate
 
-# 安装 Python 依赖
+# 安装核心依赖
 pip install -r requirements.txt
+
+# 安装 Memory RAG 子模块依赖（启用长时记忆功能时必需）
+pip install -r submodule/memory_rag/requirements.txt
 
 # 启动后端服务器
 python server.py
@@ -62,4 +67,4 @@ python server.py
 
 **注意**:
 - 前后端需要同时运行。
-- AI 功能 (在 `ai_test.py` 中) 可能需要配置 API Key 等环境变量，请根据你的实际情况进行设置。 
+- 运行 AI 代理（DM 与 AI 玩家）需要有效的 `OPENAI_API_KEY` 环境变量，可通过 `export OPENAI_API_KEY=你的Key` 设置。 

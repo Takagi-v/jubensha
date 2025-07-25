@@ -52,10 +52,16 @@ const gameStore = useGameStore()
 
 // 监听欢迎流程是否完成，完成后再连接WebSocket
 watch(() => gameStore.welcomeSequenceCompleted, (completed) => {
-  if (completed) {
-    // 组件挂载时自动连接 WebSocket
+  if (completed && !websocketService.socket?.connected) {
+    // 动画播放完毕后，如果尚未连接，则进行连接
+    // 这是为了处理首次进入游戏的流程
     websocketService.connect(gameStore.my_player_id)
   }
+})
+
+onMounted(() => {
+  // 页面加载时，不立即执行任何操作，将逻辑移交 WelcomeSequence
+  console.log("App mounted. Welcome sequence will handle connection logic.")
 })
 
 </script>

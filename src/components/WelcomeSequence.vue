@@ -1,8 +1,25 @@
 <template>
   <div class="welcome-overlay">
     <div class="sequence-container">
+      <!-- Step 0: Initial Choice -->
+      <div v-if="step === 'welcome' && !isReconnecting" class="step-container initial-choice">
+        <h1>欢迎来到东方之星号谋杀案</h1>
+        <el-button type="primary" size="large" @click="startNewGame">开始新游戏</el-button>
+        <el-button :disabled="!hasSavedGame" type="warning" size="large" style="margin-top: 20px;" @click="reconnectGame">重新连接</el-button>
+        <p v-if="!hasSavedGame" class="tip">（当前没有可重连的游戏）</p>
+      </div>
+
+      <!-- Step 0: Reconnecting Indicator -->
+      <div v-if="isReconnecting" class="step-container reconnecting-indicator">
+        <h1>正在重新连接到游戏...</h1>
+        <el-icon class="is-loading" :size="40"><Loading /></el-icon>
+        <p v-if="reconnectFailed" class="error-message">
+          重连失败，请刷新页面或联系游戏管理员。
+        </p>
+      </div>
+
       <!-- Step 1: Character Selection -->
-      <div v-if="step === 'selection'" class="step-container character-selection">
+      <div v-if="step === 'selection' && !isReconnecting" class="step-container character-selection">
         <h1>选择你的角色</h1>
         <div class="character-card" @click="selectCharacter">
           <el-avatar :size="100" src="/figure/洪船长.png" class="character-avatar"></el-avatar>
@@ -14,7 +31,7 @@
       </div>
 
       <!-- Step 2: Story Animation -->
-      <div v-if="step === 'story'" class="step-container story-narration">
+      <div v-if="step === 'story' && !isReconnecting" class="step-container story-narration">
         <div class="story-text" v-html="displayedStory"></div>
         <div class="story-actions">
           <el-button v-if="!storyCompleted" type="info" plain @click="skipTypewriter">跳过动画</el-button>
@@ -79,12 +96,17 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, onMounted, watch } from 'vue'
 import { useGameStore } from '../store/gameStore'
+import { Loading } from '@element-plus/icons-vue' // 引入 Loading 图标
+import websocketService from '../services/websocketService.js'
 
 const gameStore = useGameStore()
-const step = ref('selection') // 'selection', 'story', 'info'
+const step = ref('welcome') // 'welcome', 'selection', 'story', 'info'
 const activeInfoTab = ref('basic')
+const isReconnecting = ref(false)
+const reconnectFailed = ref(false)
+const hasSavedGame = ref(sessionStorage.getItem('game_in_progress') === 'true')
 
 const displayedStory = ref('')
 const storyCompleted = ref(false)
@@ -113,6 +135,37 @@ const selectCharacter = () => {
   startTypewriter()
 }
 
+const startNewGame = () => {
+  step.value = 'selection'
+}
+
+const attemptReconnect = () => {
+  const unwatch = watch(() => gameStore.is_connected, (connected) => {
+      if(connected) {
+          gameStore.completeWelcomeSequence()
+          unwatch()
+      }
+  });
+
+  websocketService.connect(gameStore.my_player_id)
+
+  setTimeout(() => {
+      if (!gameStore.is_connected) {
+          reconnectFailed.value = true
+          unwatch()
+      }
+  }, 10000)
+}
+
+const reconnectGame = () => {
+  if (!hasSavedGame.value) {
+    reconnectFailed.value = true
+    return
+  }
+  isReconnecting.value = true
+  attemptReconnect()
+}
+
 const startTypewriter = () => {
   let i = 0
   displayedStory.value = ''
@@ -136,8 +189,15 @@ const skipTypewriter = () => {
 }
 
 const startGame = () => {
+  // 首次进入游戏时，设置标记
+  sessionStorage.setItem('game_in_progress', 'true')
   gameStore.completeWelcomeSequence()
 }
+
+onMounted(() => {
+  // 仅更新本地状态，用户自行选择是否重连
+  hasSavedGame.value = sessionStorage.getItem('game_in_progress') === 'true'
+})
 
 onUnmounted(() => {
   clearInterval(typewriterInterval)
@@ -161,6 +221,16 @@ onUnmounted(() => {
   z-index: 1000;
   color: #fff;
   text-align: center;
+}
+.reconnecting-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.error-message {
+  color: #F56C6C;
+  font-weight: bold;
 }
 .sequence-container {
   max-width: 800px;

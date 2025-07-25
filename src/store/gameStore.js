@@ -4,12 +4,14 @@ export const useGameStore = defineStore('game', {
   // 核心状态 (State)
   state: () => ({
     welcomeSequenceCompleted: false, // 新增状态
+    typing_players: {}, // 新增：追踪正在输入的玩家
     my_player_id: 'human_player_1',
     is_connected: false,
     
     // 从后端同步的公开游戏信息
     game_state: {
       current_stage: '等待游戏开始', // More neutral initial state
+      current_stage_label: '等待游戏开始',
       current_player_id: null, // More neutral initial state
       round: 0,
       players: [
@@ -121,19 +123,44 @@ export const useGameStore = defineStore('game', {
 
   // 核心计算属性 (Getters)
   getters: {
+    // 【新增】是否轮到我进行常规发言
+    isMyStatementTurn(state) {
+      if (!state.game_state || !state.my_player_id) return false;
+      const { pendingAction, current_player_id } = state.game_state;
+      // 必须同时满足：当前玩家是我，且后端要求我发言
+      return current_player_id === state.my_player_id &&
+             typeof pendingAction === 'string' &&
+             pendingAction.startsWith('statement_');
+    },
+
     // 是否轮到我行动
     is_my_turn(state) {
-      // 投票或指认阶段，轮到所有未行动的人类玩家
-      if (state.game_state?.pendingAction === 'vote') {
+      if (!state.game_state || !state.my_player_id) return false;
+      const { pendingAction, current_player_id } = state.game_state;
+
+      // 1. 陈述回合的判断
+      if (typeof pendingAction === 'string' && pendingAction.startsWith('statement_')) {
+        return current_player_id === state.my_player_id;
+      }
+      
+      // 2. 投票或指认阶段，轮到所有未行动的人类玩家
+      if (pendingAction === 'vote') {
         const myPlayer = state.game_state.players.find(p => p.id === state.my_player_id);
         return myPlayer && myPlayer.type === 'human' && !state.game_state.votes[state.my_player_id];
       }
-      if (state.game_state?.pendingAction === 'accuse') {
+      if (pendingAction === 'accuse') {
         const myPlayer = state.game_state.players.find(p => p.id === state.my_player_id);
         return myPlayer && myPlayer.type === 'human' && !state.game_state.accusations[state.my_player_id];
       }
-      // 其他阶段，按当前发言人判断
-      return state.game_state?.current_player_id === state.my_player_id;
+
+      // 3. 在非特定行动阶段，如果当前玩家是我，则认为是我的回合（例如，未来可能的自由讨论）
+      //    但要排除AI思考或后端处理的中间状态
+      if (!pendingAction || pendingAction === "ai_thinking") {
+         return current_player_id === state.my_player_id;
+      }
+      
+      // 默认情况下不是我的回合
+      return false;
     },
     // 获取当前玩家对象
     current_player(state) {
@@ -215,6 +242,13 @@ export const useGameStore = defineStore('game', {
 
   // 核心动作 (Actions)
   actions: {
+    setPlayerTyping(playerId, playerName, isTyping) {
+        if (isTyping) {
+            this.typing_players[playerId] = playerName;
+        } else {
+            delete this.typing_players[playerId];
+        }
+    },
     setConnectionStatus(status) {
       this.is_connected = status
     },
@@ -276,5 +310,33 @@ export const useGameStore = defineStore('game', {
     completeWelcomeSequence() {
       this.welcomeSequenceCompleted = true
     },
+    // 【新增】处理重连时的完整状态
+    setInitialState(payload) {
+      if (payload.gameState) {
+        // 使用现有的 setGameState 进行合并，保证逻辑统一
+        this.setGameState(payload.gameState);
+      }
+      if (payload.messages) {
+        this.messages = payload.messages;
+      }
+      // 如果有私聊信息，也可以在这里恢复
+      if (payload.dm_messages) {
+        this.dm_messages = payload.dm_messages;
+      }
+       // 如果有个人线索，也可以在这里恢复
+      if (payload.discovered_clues) {
+        this.discovered_clues = payload.discovered_clues;
+      }
+      
+      // 关键：一旦收到初始状态，就意味着游戏已经开始，可以跳过欢迎动画
+      this.welcomeSequenceCompleted = true;
+      console.log("Game state fully restored from initial payload.");
+    },
+    // 【新增】清理会话，用于开始新游戏
+    clearSession() {
+      sessionStorage.removeItem('game_in_progress');
+      // 可以选择性地重置 state 到初始状态
+      // this.$reset(); // 如果你想要完全重置 store
+    }
   }
 }) 
