@@ -2,21 +2,18 @@
   <div class="status-bar">
     <div class="status-item">
       <el-icon><Menu /></el-icon>
-      <span>阶段: <strong>{{ gameStore.game_state.current_stage }}</strong></span>
+      <span>阶段: <strong>{{ gameStore.game_state.current_stage_label || gameStore.game_state.current_stage }}</strong></span>
     </div>
     <div class="status-item">
       <el-icon><User /></el-icon>
       <span>当前玩家: <strong>{{ (gameStore.current_player?.public_info?.character_name) || '无' }}</strong></span>
     </div>
-    <div class="status-item">
-      <el-icon><Clock /></el-icon>
-      <span>回合: <strong>{{ gameStore.game_state.round }}</strong></span>
-    </div>
+    <!-- 已移除回合显示 -->
   </div>
 </template>
 
 <script setup>
-import { Menu, User, Clock } from '@element-plus/icons-vue'
+import { Menu, User } from '@element-plus/icons-vue'
 import { useGameStore } from '../store/gameStore.js'
 
 const gameStore = useGameStore()

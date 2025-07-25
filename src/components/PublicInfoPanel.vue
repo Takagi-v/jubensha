@@ -39,19 +39,22 @@
         </div>
 
         <div class="relation-details-right">
+          <!-- Ta 公开的信息 -->
+          <div class="clues-section" style="margin-bottom: 16px;">
+            <p><strong>Ta 公开的信息:</strong></p>
+            <div v-if="publishedClues.length > 0">
+              <el-tag v-for="clue in publishedClues" :key="clue" type="primary" class="clue-tag">{{ clue }}</el-tag>
+            </div>
+            <p v-else class="no-clues">暂无公开信息</p>
+          </div>
+
+          <!-- 你与 Ta 的关系 -->
           <div v-if="selectedPlayerRelation">
             <div class="relation-section">
               <p><strong>你与 Ta 的关系:</strong></p>
               <p class="relation-desc">{{ selectedPlayerRelation.desc }}</p>
             </div>
-            <el-divider />
-            <div class="clues-section">
-              <p><strong>关于 Ta 的公开线索:</strong></p>
-              <div v-if="selectedPlayerRelation.clues && selectedPlayerRelation.clues.length > 0">
-                <el-tag v-for="clue in selectedPlayerRelation.clues" :key="clue" type="danger" class="clue-tag">{{ clue }}</el-tag>
-              </div>
-              <p v-else class="no-clues">暂无公开线索</p>
-            </div>
+            <!-- 已移除关于 Ta 的公开线索展示 -->
           </div>
           <div v-else>
             <p>你对 Ta 暂无特殊认知。</p>
@@ -86,6 +89,7 @@ const detailsDialogVisible = ref(false)
 const dmDialogVisible = ref(false)
 const selectedPlayer = ref(null)
 const selectedPlayerRelation = ref(null)
+const publishedClues = ref([])
 const dmInputText = ref('')
 
 const getCharacterAvatar = (characterName) => {
@@ -111,6 +115,12 @@ const showPlayerDetails = (player) => {
   selectedPlayer.value = player
   const relation = gameStore.my_info.relationships.find(r => r.name.includes(player.public_info.character_name))
   selectedPlayerRelation.value = relation
+
+  // 计算 Ta 公开的信息
+  const clues = (gameStore.game_state.public_clues || [])
+    .filter(c => c.publisher_id === player.id)
+    .map(c => c.content)
+  publishedClues.value = clues
   
   detailsDialogVisible.value = true
 }

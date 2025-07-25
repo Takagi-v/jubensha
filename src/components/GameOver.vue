@@ -20,7 +20,7 @@ const typedText = ref('');
 const fullText = ref('');
 
 const gameOverMessages = computed(() => 
-  gameStore.messages.filter(m => m.type === 'system' && m.content.includes('游戏结束'))
+  gameStore.messages.filter(m => (m.type === 'system' || m.type === 'turn') && m.content.includes('游戏结束'))
 );
 
 watch(() => gameStore.game_state.current_stage, (newStage) => {

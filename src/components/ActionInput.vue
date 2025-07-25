@@ -87,7 +87,7 @@ const isFinalRevealDone = computed(() => {
   // Check if there are at least two 'turn' messages from the DM at the end.
   // This is more robust than checking for specific keywords.
   const dmTurnMessages = gameStore.messages.filter(msg => 
-    msg.from_id === 'dm' && msg.type === 'turn'
+    msg.from_id === 'dm' && msg.type === 'system'
   );
   return dmTurnMessages.length >= 2;
 });

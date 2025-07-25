@@ -3,6 +3,17 @@ import socketio
 from aiohttp import web
 
 from ai_test import get_ai_response
+# ----------------- RAG 长时记忆初始化 -----------------
+import os, time
+from submodule.memory_rag.memory import RAGmanager
+
+# 为每一局游戏创建独立的记忆目录（按时间戳区分）
+_session_dir = os.path.join("rag_dbs", f"game_{int(time.time())}")
+os.makedirs(_session_dir, exist_ok=True)
+
+# 初始化 RAGmanager，并立即构建/加载索引
+rag_manager = RAGmanager(save_path=_session_dir)
+rag_manager.build_index()
 # ----------------- 新增：线程池包装 -----------------
 async def get_ai_response_async(prompt: str):
     """在后台线程执行阻塞式 get_ai_response，避免阻塞事件循环。"""
@@ -56,16 +67,38 @@ game_state = {
 # Maps player_id to their socket_id (sid)
 player_sids = {}
 
+# ----------------- 阶段中文映射 -----------------
+STAGE_LABELS = {
+    "waiting_for_players": "等待玩家加入",
+    "alibi": "不在场证明陈述",
+    "investigation_1": "第一轮现场取证",
+    "discussion_1": "第一轮推理陈述",
+    "voting_1": "第一轮投票",
+    "investigation_2": "第二轮现场取证",
+    "discussion_2": "第二轮推理陈述",
+    "final_accusation": "最终指认",
+}
+
+
+def translate_stage(stage_code: str) -> str:
+    """将内部阶段代码转换为中文标签。"""
+    return STAGE_LABELS.get(stage_code, stage_code)
+
+# 在所有 emit 中统一使用
+def stage_update_dict(stage_code: str):
+    return {"current_stage": stage_code, "current_stage_label": translate_stage(stage_code)}
+
 # ----------------- Helper: generate public game state -----------------
 # 供前端刷新/重连时一次性同步当前公共信息
 def build_public_game_state():
     public_state = {
         "current_stage": game_state["stage"],
+        "current_stage_label": translate_stage(game_state["stage"]),
         "current_player_id": (
             game_state["turn_order"][game_state["current_speaker_index"]]
             if game_state["turn_order"] and game_state["current_speaker_index"] < len(game_state["turn_order"]) else None
         ),
-        "round": 1 if "1" in game_state["stage"] else (2 if "2" in game_state["stage"] else 0),
+        # 已移除 round 字段
         "turn_order": game_state["turn_order"],
         "pendingAction": game_state["pending_action"],
         "players": [
@@ -112,6 +145,25 @@ def add_message(text, msg_type="system", author="系统", author_id="system"):
     import json
     print(json.dumps(game_state["messages"][-5:], indent=2, ensure_ascii=False))
     print("------------------------")
+
+    # -------- 将聊天内容写入 RAG 长时记忆 --------
+    if msg_type == "chat":
+        try:
+            # 根据当前阶段推断轮次（0 代表尚未开始）
+            round_num = 1 if "1" in game_state["stage"] else (2 if "2" in game_state["stage"] else 0)
+
+            # 使用线程池避免阻塞事件循环
+            asyncio.create_task(asyncio.to_thread(
+                rag_manager.add_conversation_single,
+                conversation_text=text,
+                round_number=round_num,
+                speakers=[author],
+                timestamp=message["timestamp"]
+            ))
+            print(rag_manager.list_history())
+        except Exception as e:
+            print(f"[RAG] 记录对话失败: {e}")
+
     return message
 
 # No longer need give_clue_to_player, it's handled in the investigation stage directly
@@ -128,7 +180,7 @@ async def advance_game():
         if game_state["current_speaker_index"] >= len(game_state["turn_order"]):
             # This is the correct place to transition the stage
             game_state["stage"] = "investigation_1"
-            await sio.emit('game_state_update', {"current_stage": "investigation_1"})
+            await sio.emit('game_state_update', stage_update_dict("investigation_1"))
             message = add_message("不在场证明陈述结束，进入现场取证阶段。")
             await sio.emit('new_message', message)
             asyncio.create_task(advance_game())
@@ -140,7 +192,7 @@ async def advance_game():
         # FIX: Add the missing state update for the current player
         await sio.emit('game_state_update', {"current_player_id": player_id})
         
-        message = add_message(f"现在轮到 {player['name']} 发言。", msg_type="turn", author_id=player_id)
+        message = add_message(f"现在轮到 {player['name']} 发言。", msg_type="system", author_id=player_id)
         await sio.emit('new_message', message)
 
         if player["is_ai"]:
@@ -228,7 +280,7 @@ async def advance_game():
         # 更新内部阶段并广播
         next_stage = f"discussion_{round_num_str}"
         game_state["stage"] = next_stage
-        await sio.emit('game_state_update', {"current_stage": next_stage})
+        await sio.emit('game_state_update', stage_update_dict(next_stage))
         message = add_message(f"第 {round_num_str} 轮现场取证结束，进入推理陈述阶段。")
         await sio.emit('new_message', message)
         game_state["turn_order"] = []
@@ -275,12 +327,12 @@ async def advance_game():
         if game_state["current_speaker_index"] >= len(game_state["turn_order"]):
             if round_num == "1":
                 game_state["stage"] = "voting_1"
-                await sio.emit('game_state_update', {"current_stage": "voting_1"})
+                await sio.emit('game_state_update', stage_update_dict("voting_1"))
                 message = add_message("第一轮推理陈述结束，现在进入投票阶段。")
                 await sio.emit('new_message', message)
             else: # round 2
                 game_state["stage"] = "final_accusation"
-                await sio.emit('game_state_update', {"current_stage": "final_accusation"})
+                await sio.emit('game_state_update', stage_update_dict("final_accusation"))
                 message = add_message("第二轮推理陈述结束，现在进入最终指认阶段。")
                 await sio.emit('new_message', message)
             asyncio.create_task(advance_game())
@@ -292,7 +344,7 @@ async def advance_game():
 
         await sio.emit('game_state_update', {"current_player_id": player_id})
 
-        turn_msg = add_message(f"现在轮到 {player['name']} 发言。", msg_type="turn", author_id="system")
+        turn_msg = add_message(f"现在轮到 {player['name']} 发言。", msg_type="system", author_id="system")
         await sio.emit('new_message', turn_msg)
 
         if player["is_ai"]:
@@ -339,7 +391,8 @@ async def advance_game():
             game_state["pending_action"] = "vote"
             await sio.emit('game_state_update', {"pendingAction": game_state["pending_action"]})
         
-        if len(game_state["votes"]) == len(game_state["players"]):
+        expected_voters = len([pid for pid in game_state["players"] if pid != 'dm'])
+        if len(game_state["votes"]) >= expected_voters:
             # --- Notify DM of voting results ---
             vote_summary = "第一轮投票结果如下：\n"
             for voter_id, votes in game_state["votes"].items():
@@ -363,6 +416,7 @@ async def advance_game():
             
             await sio.emit('game_state_update', {
                 "current_stage": "investigation_2",
+                "current_stage_label": translate_stage("investigation_2"),
                 "pendingAction": "", # Use empty string
                 "votes": game_state["votes"]
             })
@@ -456,7 +510,7 @@ async def start_game_flow():
     """Initializes the first stage of the game."""
     print("Starting game flow...")
     game_state["stage"] = "alibi"
-    await sio.emit('game_state_update', {"current_stage": "alibi"})
+    await sio.emit('game_state_update', stage_update_dict("alibi"))
     # This message is sent to the frontend to indicate the stage start
     message = add_message("游戏进入第一阶段：不在场证明陈述。")
     await sio.emit('new_message', message)
